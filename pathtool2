@@ -1,0 +1,1612 @@
+#!/usr/bin/perl -w
+
+#   ARXtools - A toolkit for ARX analysis
+#  
+#   Copyright: Gaëtan Leurent 2011-2012 <gaetan.leurent@normalesup.org>
+#  
+#   To the extent possible under law, the author(s) have dedicated all
+#   copyright and related and neighboring rights to this software to the
+#   public domain worldwide. This software is distributed without any
+#   warranty.
+#  
+#   You should have received a copy of the CC0 Public Domain Dedication
+#   along with this software. If not, see
+#   <http://creativecommons.org/publicdomain/zero/1.0/>.
+
+
+
+#   This tool is used to study differential paths in ARX schemes
+#
+#   In order to use it, you first need to compile the constraints tool,
+#   and you need automata representing the ARX operations produced with
+#   the build_fsm tool.
+#
+#   The tool expect to find the "constraints_xx" binary and the automata in the
+#   current directory.  The required automata are:
+#   {add-xx,and-xx,or-xx,xor-xx,eq-xx,count-xx}.fsm
+#   {quad-xx, addq-x}.fsm for boomerang constraints
+#
+#   Additionnal operations can be defined using the f3map hash below.
+
+my %f3map = (
+    "If" => "fun_if.fsm",
+    "Xor" => "fun_xor.fsm",
+    "Onx" => "fun_onx.fsm",
+    "Xor3" => "xor3.fsm",
+    "Sum3" => "sum3.fsm",
+    "Sum4" => "sum4.fsm",
+);
+
+
+
+use strict;
+# use diagnostics;
+
+use Gtk2 '-init';
+use Gtk2::Helper;
+use utf8;
+
+use Data::Dumper;
+
+use constant TRUE  => 1;
+use constant FALSE => 0;
+
+my $cstxp = qr/[-?01=!xpun><357ABCDEXNU\/\\MVIJ\[\]#]|\([0-9a-f]{8}\)/;
+
+
+package GtkWrapperHBox;
+@GtkWrapperHBox::ISA = ("Gtk2::HBox");
+sub new {
+    my $class = shift;
+    my $self = Gtk2::HBox->new(0,0);
+        
+    bless $self, $class;
+}
+
+sub add {
+    my $self = shift;
+    my $child = shift;
+    $self->pack_start($child, 0, 0, 0);
+}
+
+package GtkWrapperVBox;
+@GtkWrapperVBox::ISA = ("Gtk2::VBox");
+sub new {
+    my $class = shift;
+    my $self = Gtk2::VBox->new(0,0);
+        
+    bless $self, $class;
+}
+
+sub add {
+    my $self = shift;
+    my $child = shift;
+    $self->pack_start($child, 0, 0, 0);
+}
+
+
+package Register;
+
+my $width = 32;
+my $linesize = 32;
+my %registers;
+my @all_registers;
+
+sub strrot { # FIXME !!!!!
+    die "strrot is BROKEN";
+    my ($x, $i) = @_;
+    $i %= $width;
+    $i += $width while $i < 0;
+    return substr($x,$width-$i,$i).substr($x,0,$width-$i);
+}
+
+my %labels = (
+#    -1=> '?',
+#    0 => '-',
+#    1 => '0',
+#    2 => '1',
+#    3 => '=',
+#    4 => '≠',
+#    8 => 'x',
+#    9 => '▲',
+#    10 => '▼',
+#    11 => '▶',
+#    12 => '◀',
+#    16 => '◨',
+#    17 => '◧',
+#    18 => '⬓',
+#    19 => '⬒',
+
+#修改begin
+    -1=> '?',
+    0 => '-',
+    1 => '0',
+    2 => '1',
+    3 => '=',
+    4 => '!',
+    8 => 'x',
+    9 => 'u',
+    10 => 'n',
+    11 => '>',
+    12 => '<',
+    16 => '3',
+    17 => 'C',
+    18 => '5',
+    19 => 'A',
+	
+	7 => '7',
+	B => 'B',
+	D => 'D',
+	E => 'E',
+#修改end
+	
+    20 => 'X',
+    21 => '/',
+    22 => 'N',
+    23 => 'U',
+    24 => '\\',
+
+    25 => 'M',
+    );
+
+my %values = (
+    -1=> '?',
+    0 => '-',
+    1 => '0',
+    2 => '1',
+    3 => '=',
+    4 => '!',
+    8 => 'x',
+    9 => 'u',
+    10 => 'n',
+    11 => '>',
+    12 => '<',
+    16 => '3',
+    17 => 'C',
+    18 => '5',
+    19 => 'A',
+
+    20 => 'X',
+    21 => '/',
+    22 => 'N',
+    23 => 'U',
+    24 => '\\',
+
+    25 => 'M',
+    );
+
+my %vals = (
+    '?' => -1,
+    '-' => 0,
+    '0' => 1,
+    '1' => 2,
+    '=' => 3,
+    '!' => 4,
+    'x' => 8,
+    'p' => 9,
+    'u' => 9,
+    'n' => 10,
+    '>' => 11,
+    '<' => 12,
+    '3' => 16,
+    'C' => 17,
+    '5' => 18,
+    'A' => 19,
+    
+    'X' => 20,
+    '/' => 21,
+    'N' => 22,
+    'U' => 23,
+    '\\'=> 24,
+
+    'M' => 25,
+
+    );
+
+my %flips = (
+    0 => 8,
+    8 => -1,
+    -1 => 0,
+    1 => 0,
+    2 => 0,
+    3 => 0,
+    4 => 0,
+    9 => 8,
+    10 => 8,
+    11 => 8,
+    12 => 8,
+
+    20 => 8,
+    21 => 8,
+    22 => 8,
+    23 => 8,
+    24 => 8,
+
+    25 => 8,
+    );
+
+my %flips2 = (
+    0 => 1,
+    1 => 2,
+    2 => 1,
+    3 => 4,
+    4 => 3,
+    8 => 9,
+    9 => 10,
+    10 => 9,
+    11 => 12,
+    12 => 11,
+    );
+
+sub new {
+    my $class = shift;
+    my $type  = shift;
+    my $self = {
+        label => shift,
+        name => shift,
+        bits => [],
+        active => [],
+        buttons => [],
+        equation => undef,
+        hidden => $type =~ /hidden/? 1: 0,
+    };
+    my $value = shift || '?' x $width;
+    if ($value =~ /^#([0-9a-z]*)/) {
+        $value = sprintf "%0${width}b", hex($1);
+        $value =~ tr/01/-x/;
+    }
+    if (my $r = main::get_conf("rotate")) {
+        $value = strrot($value, $width-$r);
+    }
+
+    my $mainbox = GtkWrapperHBox->new();
+    $mainbox->set('no-show-all' => 1) if ($self->{hidden});
+    
+    my $frame = Gtk2::Frame->new($self->{label});
+    $mainbox->add($frame);
+    $frame->set_border_width(1);
+    
+    my $vbox = GtkWrapperVBox->new();
+    $frame->add($vbox);
+    $vbox->set_border_width(1);
+    
+    my $hbox1 = GtkWrapperHBox->new();
+    $vbox->add($hbox1);
+    my $hbox2;
+    if ($width > $linesize) {
+        $hbox2 = GtkWrapperHBox->new();
+        $vbox->add($hbox2);
+    }
+
+    my $rem = $value;
+#    print "Val: $value\n";
+    my $t;
+    for (my $i=0; $i<$width; $i++) {
+        ($t, $rem) = ($rem =~ /^(${cstxp})(.*)/) or die "Invalid constraint: `$rem'";
+        my $v = $vals{$t} // $t;
+        $self->{bits}->[$i] = $v;
+        $self->{active}->[$i] = 0;
+        my $bool_button = Gtk2::Button->new($labels{$v} // "@");
+#	$labels{$v} // "@"
+        if ($i < $linesize) {
+            $hbox1->add($bool_button);
+        } else {
+            $hbox2->add($bool_button);
+        }
+        $bool_button->signal_connect( 'button-press-event' => \&flip, [$self, $i] );
+        $self->{buttons}->[$i] = $bool_button;
+    }
+
+    my $button = Gtk2::Button->new("?");
+    $mainbox->add($button);
+    $button->signal_connect( clicked => sub { $self->set_all("?"); });
+
+    $button = Gtk2::Button->new("-");
+    $mainbox->add($button);
+    $button->signal_connect( clicked => sub { $self->set_all("-"); });
+
+    # $button = Gtk2::Button->new("x");
+    # $mainbox->add($button);
+    # $button->signal_connect( clicked => sub { $self->set_all("x"); });
+
+    $self->{widget} = $mainbox;
+    $self->{mainbox} = $mainbox;
+
+
+
+    bless $self, $class;
+}
+
+sub flip {
+    my ($button, $event, $ref) = @_;
+    my( $self, $i ) = @$ref;
+    my $bool = $self->{bits}->[$i];
+    if ($event->button == 1) {
+        $bool = $flips{$bool} // -1;
+    } elsif ($event->button == 3) {
+        $bool = $flips2{$bool} // (defined($labels{$bool})? $bool: -1);
+    } else {
+        return;
+    }
+    $self->{buttons}->[$i]->set_label($labels{$bool});
+    $self->{bits}->[$i] = $bool;
+    foreach my $cb (@{$self->{callback}}) {
+        my @arg = @$cb;
+        my $fun = shift @arg;
+        $fun->(@arg);
+    }
+}
+
+sub set_all {
+    my $self= shift;
+    my $label = shift;
+    my $bool = $vals{$label};
+
+    for (my $i=0; $i<$width; $i++) {
+        $self->{buttons}->[$i]->set_label($label);
+        $self->{bits}->[$i] = $bool;
+    }
+
+    foreach my $cb (@{$self->{callback}}) {
+        my @arg = @$cb;
+        my $fun = shift @arg;
+        $fun->(@arg);
+    }
+}
+
+sub eq_cb {
+    my ($a, $b) = @_;
+    if (@{$a} != @{$b}) {
+        return 0;
+    }
+    for (my $i=0; $i<@{$a}; $i++) {
+        if ($$a[$i] != $$b[$i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+sub flipto {
+    my ($self, $i, $v, $todo) = @_;
+    my $b = $vals{$v} // $v;
+    $self->{buttons}->[$i]->set_label($labels{$b} // "@");
+#$	labels{$b} // "@"
+    $self->{bits}->[$i] = $b;
+  CB:
+    foreach my $cb (@{$self->{callback}}) {
+        if (defined($todo)) {
+            for (@{$todo}) {
+                if (eq_cb($_, $cb)) {
+                    # Duplicate callback
+                    next CB;
+                }
+            }
+            push @{$todo}, $cb;
+        } else {
+            my @arg = @$cb;
+            my $fun = shift @arg;
+            $fun->(@arg);
+        }
+    }
+}
+
+sub setCallback {
+    my $self = shift;
+    @{$self->{callback}} = [[ @_ ]];
+}
+
+sub addCallback {
+    my $self = shift;
+    push @{$self->{callback}}, [ @_ ];
+}
+
+sub activate {
+    my( $self, $i, $a ) = @_;
+    my $button = $self->{buttons}->[$i];
+    $self->{active}->[$i] += $a;
+    my $color;
+    if ($self->{active}->[$i] > 2) {
+        $color = Gtk2::Gdk::Color->new (65535, 0, 0);
+    } elsif ($self->{active}->[$i] > 1) {
+        $color = Gtk2::Gdk::Color->new (65535, 30000, 5000);
+    } elsif ($self->{active}->[$i] > 0) {
+        $color = Gtk2::Gdk::Color->new (65535, 55000, 10000);
+    }
+
+    $button->modify_bg('normal',$color);
+    $button->modify_bg('active',$color);
+    $button->modify_bg('prelight',$color);
+    $button->modify_bg('selected',$color);
+}
+
+sub getValue2 {
+    my $self = shift;
+    my $rot = shift // 0;
+    my $value = "";
+    for (my $j=0; $j<$width; $j++) {
+        my $i = ($j+$rot+$width) % $width;
+        $value .= $values{$self->{bits}->[$i]} // $self->{bits}->[$i];
+    }
+    return $value;
+}
+
+sub setValue2 {
+    my $self = shift;
+    my $value = shift;
+
+#    print "# ".$self->getValue2();
+
+    my $rem = $value;
+    my $t;
+    for (my $i=0; $i<$width; $i++) {
+        ($t, $rem) = ($rem =~ /(${cstxp})(.*)/) or die;
+
+        my $x = $vals{$t} // $t; # FIXME
+        $self->{buttons}->[$i]->set_label($labels{$x} // "@");
+        $self->{bits}->[$i] = $x;
+    }
+#    print "=> ".$self->getValue2()."\n";
+}
+
+sub getWidget {
+    my $self = shift;
+    return WidgetAndState->new($self->{widget}, $self);
+}
+
+sub addEquation {
+    my ($self, $str) = @_;
+
+    my $eq = Equation->new($str, $self);
+
+    $self->{mainbox}->add($eq->getWidget());
+    $self->{equation} = $eq;
+}
+
+sub addEquation3 {
+    my ($self, $str) = @_;
+
+    my $eq = Equation->new3($str, $self);
+
+    $self->{mainbox}->add($eq->getWidget());
+    $self->{equation} = $eq;
+}
+
+sub noEquation {
+    my $self = shift;
+
+    my $group = main::get_headg();
+    if (defined($group)) {
+	$self->{headg} = $group;
+	$self->{sol} = 0;
+	push @{$group->{__dcost}}, \$self->{sol};
+    }
+    $self->addCallback(\&update, $self);
+    $self->update();
+}
+
+sub getInnerState {
+    my $self = shift;
+
+    my $eq = defined($self->{equation}) ?
+        $self->{equation}->{name}:
+        $self->{name};
+    my $type = $self->{hidden}? "hidden": "state";
+    return "\@${type} \"$self->{label}\" $eq :\t".$self->getValue2()."\n";
+}
+
+sub setVisibility {
+    my $self = shift;
+    my $v = shift;
+
+    if ($self->{hidden}) {
+        if ($v) {
+            $self->{mainbox}->set('no-show-all' => 0);
+            $self->{mainbox}->show_all();
+        } else {
+            $self->{mainbox}->set('no-show-all' => 1);
+            $self->{mainbox}->hide_all();
+        }
+    }
+}
+
+sub update {
+    my $self = shift;
+    if (defined($self->{equation})) {
+        return $self->{equation}->update(@_);
+    } else {
+        my @arg = ("-c", "-s", "count-xx.fsm", "--", $self->getValue2());
+        
+        my @pipe = main::cacherun(@arg);
+        my $sol;
+        
+        for (@pipe) {
+            if (my ($s) = /^#Sol: [0-9]+ \(2\^([-0-9.]+)\)/) {
+                $sol = $s;
+            }
+        }
+        
+        $self->{sol}  = $sol;
+        
+        if (defined($self->{headg})) {
+            $self->{headg}->updateCost();
+        }
+        
+    }
+}
+
+sub propagate {
+    my $self = shift;
+    return $self->{equation}->propagate(@_) if defined($self->{equation});
+}
+
+package Equation;
+
+my $rxp = qr/[a-zA-Z][A-Za-z_0-9]*/;
+my $dxp = qr/[0-9]+/;
+my $f3pattern = '(?:' . join('|', keys(%f3map)) . ')';
+my $f3xp = qr/$f3pattern/;
+
+sub new {
+    my $class = shift;
+    my $name = shift;
+    my $xr = shift;
+    my $self = {
+        io => [],
+        fails => $width+1,
+        name => $name,
+	cost => 0+"inf",
+	rcost => 0+"inf",
+    };
+
+    (my ($x, $rx, $a, $ra, $op, $b, $rb) =
+        ($name =~ /(${rxp})(?:\%(${dxp}))?\s*=\s*
+          (${rxp})(?:\%(${dxp}))?\s*
+          (?:([+^&|])\s*(${rxp})(?:\%(${dxp}))?)?/xo))
+        || die "Bad equation: $name";
+
+    # print "1:$1; 2:$2; 3:$3; 4:$4; 5:$5; 6:$6\n";
+    # print "x:$x; rx:$rx; a:$a; ra:$ra; op:$op; b:$b; rb:$rb\n";
+
+    # my $op;
+    # my $rb;
+    # my $rx;
+    # my $ra;
+    # my $x;
+    # my $a;
+    # die "Bad equation: `$name' // $x/$a" unless (
+    #     ($x, $a) =
+    #     ($name =~ /([a-z]) = ([a-z])/));
+        
+
+    die "Error: unkown variable `$a'" unless defined($registers{$a});
+    push @{$self->{io}}, $registers{$a};
+
+    if (defined($b)) {
+        die "Error: unkown variable `$b'" unless defined($registers{$b});    
+        push @{$self->{io}}, $registers{$b} if defined($b);
+    }
+    if (defined($xr)) {
+        push @{$self->{io}}, $xr;
+    } else {
+        push @{$self->{io}}, $registers{$x};
+    }
+    $self->{op} = $op;
+    
+    # TODO check direction for rotation
+    if (defined($b)) {
+        $self->{affects} = [ [0,$ra // 0], [1,$rb // 0], [2,$rx // 0] ];
+    } else {
+        $self->{affects} = [ [0,$ra // 0], [1,$rx // 0] ];
+    }
+
+    if (defined($self->{op}) && $self->{op} eq "+") {
+        # List will be used for quartet additions
+
+        push @{ main::get_addq() }, @{$self->{io}};
+        push @{ main::get_addq_affects() }, @{$self->{affects}};
+    }
+
+    my $frame = Gtk2::Frame->new($name);
+    my $table = Gtk2::Table->new (2,4);
+
+    $frame->add($table);
+
+    my $button = Gtk2::Button->new("Propagate");
+    $table->attach_defaults($button, 0, 1, 3, 4);
+    $button->signal_connect( clicked => sub { $self->propagate(); });
+    $self->{propagate_button} = $button;
+
+    $button = Gtk2::Button->new("Linearize");
+    $table->attach_defaults($button, 1, 2, 3, 4);
+    $button->signal_connect( clicked => sub { $self->propagate(undef, 1); });
+
+    # my $l = Gtk2::Label->new("r: $self->{r}");
+    # $table->attach_defaults($l, 0, 2, 2, 3);
+
+    # $self->{label1} = Gtk2::Label->new("-");
+    # $table->attach_defaults($self->{label1}, 0, 1, 0, 1);
+    # $self->{label2} = Gtk2::Label->new("-");
+    # $table->attach_defaults($self->{label2}, 0, 1, 1, 2);
+
+    # $self->{rlabel1} = Gtk2::Label->new("-");
+    # $table->attach_defaults($self->{rlabel1}, 1, 2, 0, 1);
+    # $self->{rlabel2} = Gtk2::Label->new("-");
+    # $table->attach_defaults($self->{rlabel2}, 1, 2, 1, 2);
+
+    my $group = main::get_headg();
+    if (defined($group)) {
+	$self->{headg} = $group;
+	push @{$group->{__rcost}}, \$self->{rcost};
+	push @{$group->{__dcost}}, \$self->{cost};
+    }
+
+    $self->{widget} = $frame;
+
+    foreach my $r (@{$self->{io}}) {
+	$r->addCallback(\&update, $self);
+    }
+
+    bless $self, $class;
+    $self->update();
+    return $self;
+}
+
+sub new3 {
+    my $class = shift;
+    my $name = shift;
+    my $xr = shift;
+    my $self = {
+        io => [],
+        fails => $width+1,
+        name => $name,
+	cost => 0+"inf",
+	rcost => 0+"inf",
+    };
+
+    (my ($x, $rx, $op, $args_str) =
+        ($name =~ /(${rxp})(?:\%(${dxp}))?\s*=\s*
+          (${f3xp})\s*\(\s*(.*)\)/xo))
+        || die "Bad equation: $name";
+
+    my @args = ();
+    push @args, $args_str =~ /(${rxp})(?:\%(${dxp}))?\s*,\s*/gp;
+    push @args, ${^POSTMATCH} =~ /(${rxp})(?:\%(${dxp}))?\s*/;
+
+    $self->{affects} = [];
+    my $i;
+    for ($i = 0; 2*$i < @args; $i++) {
+	my $a = $args[2*$i];
+	die "Error: unkown variable `$a'" unless defined($registers{$a});
+	push @{$self->{io}}, $registers{$a};
+	push @{$self->{affects}}, [$i,$args[2*$i+1] // 0];
+    }
+
+    if (defined($xr)) {
+        push @{$self->{io}}, $xr;
+    } else {
+        push @{$self->{io}}, $registers{$x};
+    }
+    push @{$self->{affects}}, [$i,$rx // 0];
+
+    $self->{op} = $op;
+    
+    my $frame = Gtk2::Frame->new($name);
+    my $table = Gtk2::Table->new (2,4);
+
+    $frame->add($table);
+
+    my $button = Gtk2::Button->new("Propagate");
+    $table->attach_defaults($button, 0, 1, 3, 4);
+    $button->signal_connect( clicked => sub { $self->propagate(); });
+    $self->{propagate_button} = $button;
+
+    $button = Gtk2::Button->new("Linearize");
+    $table->attach_defaults($button, 1, 2, 3, 4);
+    $button->signal_connect( clicked => sub { $self->propagate(undef, 1); });
+
+    my $group = main::get_headg();
+    if (defined($group)) {
+	$self->{headg} = $group;
+	push @{$group->{__rcost}}, \$self->{rcost};
+	push @{$group->{__dcost}}, \$self->{cost};
+    }
+
+    $self->{widget} = $frame;
+
+    foreach my $r (@{$self->{io}}) {
+	$r->addCallback(\&update, $self);
+    }
+
+    bless $self, $class;
+    $self->update();
+    return $self;
+}
+
+sub boomerang {
+    my $class = shift;
+    my $self = {
+        io => [ @_ ],
+        affects => [ [0,0], [1,0], [2,0], [3,0] ],
+        fails => $width+1,
+        name => "Boomerang constraint",
+        op => "Boomerang",
+    };
+
+    my $button = Gtk2::Button->new("Propagate");
+    $button->signal_connect( clicked => sub { $self->propagate(); });
+    $self->{widget} = $button;
+
+    foreach my $r (@{$self->{io}}) {
+	$r->addCallback(\&update, $self);
+    }
+
+    bless $self, $class;
+    $self->update();
+    return $self;
+}
+
+sub addq {
+    my $class = shift;
+    my $self = {
+        io => shift,
+        fails => $width+1,
+        name => "addq constraint",
+        op => "addq",
+    };
+
+    my $affects = shift;
+    $self->{affects} = [
+        map { [$_, $affects->[$_]->[1] ] } (0..11)
+        ];
+
+    my $button = Gtk2::Button->new("Propagate");
+    $button->signal_connect( clicked => sub { $self->propagate(); });
+    $self->{widget} = $button;
+
+    foreach my $r (@{$self->{io}}) {
+	$r->addCallback(\&update, $self);
+    }
+
+    bless $self, $class;
+    $self->update();
+    return $self;
+}
+
+
+sub getbit {
+    my ($self, $i, $j)= @_;
+    
+    $j  = $width-1-$j;
+    $j += $self->{affects}->[$i]->[1];
+
+    $j %= $width;
+    $j += $width while $j < 0;
+    return $j;
+}
+
+sub getarg {
+    my $self = shift;
+    my @res;
+    my @arg = @_? @_: (0..$#{$self->{affects}});
+
+    for (@arg) {
+        my $rot = $self->{affects}->[$_]->[1];
+        my $s = $self->{io}->[$_]->getValue2($rot);
+        push @res, $s;
+    }
+    return @res;
+}
+
+sub update {
+    my $self = shift;
+
+    $self->update_colors(-1);
+    $self->{fails} = $width+1;
+
+    my @arg = ("-c");
+
+    if (defined($self->{op})) {
+        if ($self->{op} eq "Boomerang") {
+            push @arg, ("-s", "quad-xx.fsm");
+            
+            push @arg, "--";
+            push @arg, $self->getarg(0,1,2,3);
+        } elsif ($self->{op} eq "addq") {
+            push @arg, ("-s", "addq-x.fsm");
+            
+            push @arg, "--";
+            push @arg, $self->getarg(0..11);
+        } elsif ($self->{op} =~ ${f3xp}) {
+	    push @arg, ("-s", $f3map{$self->{op}});
+            push @arg, "--";
+            push @arg, $self->getarg();
+        } else {
+            if ($self->{op} eq "^") {
+                push @arg, ("-s", "xor-xx.fsm");
+            } elsif ($self->{op} eq "&") {
+                push @arg, ("-s", "and-xx.fsm");
+            } elsif ($self->{op} eq "|") {
+                push @arg, ("-s", "or-xx.fsm");
+            } else {
+                push @arg, ("-s", "add-xx.fsm");
+            }
+            
+            push @arg, "--";
+            push @arg, $self->getarg(0,1,2);
+        }
+    } else {
+        push @arg, ("-s", "eq-xx.fsm");
+        
+        push @arg, "--";
+        push @arg, $self->getarg(0,1);
+    }
+
+    my $cost = 0+"inf";
+    my $rcost = 0+"inf";
+    my $fail;
+
+    # open (my $pipe, '-|', "./solve-op", @arg);
+
+    my @pipe = main::cacherun(@arg);
+
+    for (@pipe) {
+        if (my ($ma) = /^System fails at +([0-9]+)/) {
+            $fail = $ma;
+#            print (($self->{op} // "empty") . " $_");
+            chomp;
+            print ("$_: " . ($self->{name} // "(empty)") . "\n");
+	    print '"'.join("\" \"", @arg)."\"\n";
+            $self->{fails} = $ma;
+            exit (2) if (main::get_conf("batch") == 1);
+        } elsif (my ($c) = /^Cost\[2\]:? *(-?[0-9]+.?[0-9]?)/) {
+            $cost = $c;
+        } elsif (my ($rc) = /^Cost\[0\]:? *(-?[0-9]+.?[0-9]?)/) {
+            $rcost = $rc;
+        }
+    }
+
+    # $self->{label}->set_text(defined($fail)? "#$fail": $cost);
+    # $self->{rlabel}->set_text(defined($fail)? "#$fail": $rcost);
+
+    $self->{cost}  = defined($fail)? 0+"inf": $cost;
+    $self->{rcost} = defined($fail)? 0+"inf": $rcost;
+
+    $self->update_colors(1);
+
+    if (defined($self->{headg})) {
+	$self->{headg}->updateCost();
+    }
+}
+
+sub propagate {
+    my $self= shift;
+    my $count= shift;
+    my $linearize = shift;
+    my $todo = [];
+
+    my @arg = "-p";
+
+    if (defined($self->{op})) {
+        if ($self->{op} eq "Boomerang") {
+            push @arg, ("-s", "quad-xx.fsm");
+            
+            push @arg, "--";
+            push @arg, $self->getarg(0,1,2,3);
+        } elsif ($self->{op} eq "addq") {
+            push @arg, ("-s", "addq-x.fsm");
+            
+            push @arg, "--";
+            push @arg, $self->getarg(0..11);
+        } elsif ($self->{op} =~ ${f3xp}) {
+	    push @arg, ("-s", $f3map{$self->{op}});
+            push @arg, "--";
+            push @arg, $self->getarg();
+        } else {
+            if (($self->{op} eq "+" && $linearize) || $self->{op} eq "^") {
+                push @arg, ("-s", "xor-xx.fsm");
+            } elsif ($self->{op} eq "+") {
+                push @arg, ("-s", "add-xx.fsm");
+            } elsif ($self->{op} eq "&") {
+                push @arg, ("-s", "and-xx.fsm");
+            } else {
+                push @arg, ("-s", "or-xx.fsm");
+            }
+            
+            push @arg, "--";
+            push @arg, $self->getarg(0,1,2);
+        }
+    } else {
+        push @arg, ("-s", "eq-xx.fsm");
+        
+        push @arg, "--";
+        push @arg, $self->getarg(0,1);
+    }
+    
+    # $, = " ";
+    # print "// ", @arg, "\n";
+
+    # open (my $pipe, '-|', "./solve-op", @arg);
+
+    my @pipe = main::cacherun(@arg);
+    my $in = 0;
+    my $params = 0;
+
+    for (@pipe) {
+        if (my ($x, $i, $v) =
+            /^Sign constraint: ([0-9]+).([0-9]+):(${cstxp})/) {
+            $self->{io}->[$x]->flipto($self->getbit($x, $i), $v, $todo);
+            $$count++ if defined $count;
+        }
+        if ($params) {
+            my $rem = $_; my $v;
+#            print "REM[$in]: $rem";
+            for my $j (0..$width-1) {
+                my $i = $width-1-$j;
+                ($v, $rem) = ($rem =~ /^(${cstxp})(.*)/) or die "Unable to parse `$rem' ($j)";
+                my $vv = $vals{$v} // $v;
+                my $uu = $self->{io}->[$in]->{bits}->[$self->getbit($in, $i)];
+                if ($uu ne $vv) {
+#                    print "New: $in.$i: $v [$uu]\n";
+                    $self->{io}->[$in]->flipto($self->getbit($in, $i), $v, $todo);
+                    $$count++ if defined $count;
+                } else {
+#                    print "Old: $in.$i: $v [$uu]\n";
+                }
+            }
+            $in++;
+        }
+        if (/New parameters/) {
+            $params = 1;
+        }
+    }
+
+    for my $cb (@{$todo}) {
+        my @arg = @$cb;
+        my $fun = shift @arg;
+        $fun->(@arg);
+    }
+
+    $self->update();
+}
+
+sub update_colors {
+    my( $self, $activate ) = @_;
+
+    if ($self->{fails} != $width+1) {
+        for my $x (@{$self->{affects}}) {
+            $self->{io}->[$x->[0]]->activate(
+                ($width-1-$self->{fails}+$x->[1])%$width, $activate);
+        }
+    }
+}
+
+sub getWidget {
+    my $self = shift;
+    return WidgetAndState->new($self->{widget}, $self);
+}
+
+sub getInnerState {
+    my $self = shift;
+    return "" if ($self->{op} eq "Boomerang" || $self->{op} eq "addq");
+
+    return "\@equation $self->{name}\n";
+}
+
+
+package Box;
+
+sub update{
+    my $self = shift;
+
+    for ($self->get_children()) {
+        $_->update();
+    }
+}
+
+sub propagate{
+    my $self = shift;
+
+    for ($self->get_children()) {
+        $_->propagate(@_);
+    }
+}
+
+sub getInnerState{
+    my $self = shift;
+
+    my $str = "\@".ref($self).";\n";
+
+    for ($self->get_children()) {
+        $str .= $_->getInnerState();
+    }
+    $str .= "\@end;\n";
+    return $str;
+}
+
+sub setVisibility{
+    my $self = shift;
+
+    for ($self->get_children()) {
+        $_->setVisibility(@_);
+    }
+}
+
+package HBox;
+@HBox::ISA = ("Box", "GtkWrapperHBox");
+sub new {
+    my $class = shift;
+    my $self = GtkWrapperHBox->new();
+        
+    bless $self, $class;
+}
+
+package VBox;
+@VBox::ISA = ("Box", "GtkWrapperVBox");
+sub new {
+    my $class = shift;
+    my $self = GtkWrapperVBox->new();
+        
+    bless $self, $class;
+}
+
+package Root;
+@Root::ISA = ("Box", "GtkWrapperHBox");
+sub new {
+    my $class = shift;
+    my $self = GtkWrapperHBox->new();
+        
+    bless $self, $class;
+}
+
+sub getInnerState{
+    my $self = shift;
+    my $str;
+    for ($self->get_children()) {
+        $str .= $_->getInnerState();
+    }
+    return $str;
+}
+
+package Conf;
+@Conf::ISA = ("Root");
+sub new {
+    my $class = shift;
+    my $self = Root->new();
+    $self->{__conf} = {};
+
+    bless $self, $class;
+}
+
+sub getInnerState {
+    my $self = shift;
+    my $str;
+    for (keys %{$self->{__conf}}) {
+        $str .= "\@conf $_ = $self->{__conf}->{$_};\n";
+    }
+    for ($self->get_children()) {
+        $str .= $_->getInnerState();
+    }
+    return $str;
+}
+
+sub getConf {
+    my $self = shift;
+    my $x = shift;
+    $self->{__conf}->{$x};
+}
+
+sub setConf {
+    my $self = shift;
+    my $x = shift;
+    my $y = shift;
+    $self->{__conf}->{$x} = $y;
+    if ($x eq "wordsize") {
+        $width = $y;
+    } elsif ($x eq "linesize") {
+        $linesize = $y;
+    }
+}
+
+package Group;
+@Group::ISA = ("Gtk2::Frame");
+
+sub new {
+    my $class = shift;
+    my $str = shift;
+    my $self = Gtk2::Frame->new($str);
+
+    $self->{__label} = $str;
+    $self->{__dcost} = [];
+    $self->{__rcost} = [];
+
+    my $table = Gtk2::Table->new (2,4);
+    $self->add($table);
+
+    my $hbox = Root->new();
+    $table->attach_defaults($hbox, 1, 2, 0, 4);
+
+    my $label = Gtk2::Label->new("-");
+    $table->attach_defaults($label, 0, 1, 0, 1);
+    $self->{__dlabel} = $label;
+
+    $label = Gtk2::Label->new("-");
+    $table->attach_defaults($label, 0, 1, 1, 2);
+    $self->{__rlabel} = $label;
+
+    my $button = Gtk2::Button->new("Propagate");
+    $table->attach_defaults($button, 0, 1, 2, 3);
+    $button->signal_connect( clicked => sub {
+        my $c = 0;
+        my $cc = -1;
+        while ($cc < $c) {
+            $cc = $c;
+            $self->propagate(\$c);
+        }
+        print "New constraints: $c\n";
+    } );
+
+    $button = Gtk2::Button->new("Linearize");
+    $table->attach_defaults($button, 0, 1, 3, 4);
+    $button->signal_connect( clicked => sub {
+        my $c = 0;
+        my $cc = -1;
+        while ($cc < $c) {
+            $cc = $c;
+            $self->propagate(\$c,1);
+        }
+        print "New constraints: $c\n";
+    } );
+
+    $self->{__innerwidget} = $hbox;
+
+    bless $self, $class;
+}
+
+sub update{
+    my $self = shift;
+    $self->{__innerwidget}->update(@_);
+}
+
+sub updateCost {
+    my $self = shift;
+
+    my $x = 0;
+    for (@{$self->{__dcost}}) {
+        
+    	$x += $$_;
+    }
+    $self->{__dlabel}->set_text("c: $x");
+
+    $x = 0;
+    for (@{$self->{__rcost}}) {
+    	$x += $$_;
+    }
+    $self->{__rlabel}->set_text("rc: $x");
+}
+
+sub propagate{
+    my $self = shift;
+    $self->{__innerwidget}->propagate(@_);
+}
+
+sub getInnerState{
+    my $self = shift;
+    "\@group \"$self->{__label}\"\n".
+        $self->{__innerwidget}->getInnerState(@_).
+        "\@end\n";
+}
+
+sub setVisibility{
+    my $self = shift;
+    $self->{__innerwidget}->setVisibility(@_);
+}
+
+sub getInnerWidget {
+    my $self = shift;
+    $self->{__innerwidget};
+}
+
+package WidgetAndState;
+@WidgetAndState::ISA = ("Gtk2::Container");
+
+sub new {
+    my $class  = shift;
+    my $widget = shift;
+    my $state  = shift;
+    $widget->{__state} = $state;
+
+    bless $widget, $class;
+}
+
+sub update {
+    my $self = shift;
+    return $self->{__state}->update(@_);
+}
+
+sub propagate {
+    my $self = shift;
+    return $self->{__state}->propagate(@_);
+}
+
+sub getInnerState {
+    my $self = shift;
+    return $self->{__state}->getInnerState(@_);
+}
+
+sub setVisibility {
+    my $self = shift;
+    return $self->{__state}->setVisibility(@_);
+}
+
+package main;
+
+if (@ARGV == 0) {
+    print "Usage: $0 path\n";
+    exit(0);
+}
+
+my $head;
+my $headg;
+my $conf;
+my $visible = 0;
+my @stack;
+
+# Record additions for boomerang constraints
+my @addq;
+my @addq_affects;
+
+sub create_window {
+
+    my $window = Gtk2::Window->new;
+    $window->set_title ('ARX path tool');
+    $window->signal_connect (destroy => sub { Gtk2->main_quit; });
+    $window->set_border_width(3);
+
+    Gtk2::Rc->parse("./gtkrc");
+    
+Gtk2::Rc->parse_string ('style "user-font"
+{
+  font_name="Monospace 6"
+}
+widget_class "*" style "user-font"');
+
+
+    my $vbox = Gtk2::VBox->new();
+    $window->add($vbox);
+
+    my $toolbar = Gtk2::Toolbar->new();
+    $toolbar->set_style ("both");
+
+    $vbox->pack_start($toolbar, 0, 0, 0);
+
+    my $button = Gtk2::ToolButton->new_from_stock ('gtk-execute');
+    $button->set_label("Propagate");
+    $button->signal_connect( clicked => sub {
+        my $c = propagate();
+        print "New constraints: $c\n"; } );
+    $toolbar->insert($button, -1);
+
+    $button = Gtk2::ToolButton->new_from_stock ('gtk-save');
+    $button->signal_connect( clicked => sub {
+        my $dialog = Gtk2::FileChooserDialog->new ("Save File",
+                                                   $window,
+                                                   'save',
+                                                   'gtk-cancel', 'cancel',
+                                                   'gtk-save', 'accept');
+        $dialog->set_do_overwrite_confirmation(1);
+        
+            
+        open (my $fd, '>', "/root/test/3");
+        my $oldfd = select($fd);
+        print "// ARX path\n";
+        print $head->getInnerState();
+        close($fd);
+        select($oldfd);
+        
+        $dialog->destroy(); } );
+    $toolbar->insert($button, -1);
+
+    #propagate();
+    #open (my $fd, '>', "/root/test/3");
+    #my $oldfd = select($fd);
+    #print "// ARX path\n";
+    #print $head->getInnerState();
+    #close($fd);
+    #select($oldfd);
+
+
+    $button = Gtk2::ToolButton->new_from_stock ('gtk-help');
+    $button->signal_connect( clicked => sub {
+        my $dialog = Gtk2::MessageDialog->new ($window,
+                                               'destroy-with-parent',
+                                               'info', # message type
+                                               'none', # which set of buttons?
+                                               "Play around with Skein paths!");
+        $dialog->show_all; } );
+    $toolbar->insert($button, -1);
+    $button = Gtk2::ToolButton->new_from_stock ('gtk-quit');
+    $button->signal_connect( clicked => sub { Gtk2->main_quit; } );
+    $toolbar->insert($button, -1);
+    
+    $button = Gtk2::ToolButton->new_from_stock ('gtk-refresh');
+    $button->set_label("Linearize");
+    $button->signal_connect( clicked => sub {
+        my $c = linearize();
+        print "New constraints: $c\n";
+                             } );
+    $toolbar->insert($button, -1);
+
+    $button = Gtk2::ToolButton->new_from_stock ('gtk-find');
+    $button->set_label("Toggle hidden states");
+    $button->signal_connect( clicked => sub { 
+        $window->hide_all();
+        $visible = 1-$visible;
+        $head->setVisibility($visible);
+        $window->show_all(); } );
+    $toolbar->insert($button, -1);
+
+    $button = Gtk2::ToolButton->new_from_stock ('gtk-go-down');
+    $button->set_label("Push state");
+    $button->signal_connect( clicked => sub { 
+        my @s = map { $_->getValue2() } @all_registers;
+        push @stack, \@s; } );
+    $toolbar->insert($button, -1);
+
+    $button = Gtk2::ToolButton->new_from_stock ('gtk-go-up');
+    $button->set_label("Pop state");
+    $button->signal_connect( clicked => sub { 
+        my $s = pop @stack;
+        for my $i (0..@$s-1) {
+            $all_registers[$i]->setValue2($s->[$i]);
+        }
+        $head->update(); } );
+    $toolbar->insert($button, -1);
+
+    # Experimental feature
+
+    # $button = Gtk2::ToolButton->new_from_stock ('gtk-yes');
+    # $button->set_label("Stress Test");
+    # $button->signal_connect( clicked => \&stress_test );
+    # $toolbar->insert($button, -1);
+
+    my $scroll = Gtk2::ScrolledWindow->new;
+    $scroll->set_policy('automatic', 'automatic');
+    $vbox->pack_start($scroll, 1, 1, 0);
+    $scroll->set_size_request(400,200);
+    
+#my $hbox = Gtk2::HBox->new(FALSE, 6);
+#$scroll->add_with_viewport($hbox);
+    
+
+    my @input;
+
+    my $version = 1;
+
+    $conf = $head = Conf->new();
+    $scroll->add_with_viewport($head);
+
+    my $eqxp = qr/\s*(?:\%[0-9]+)?\s*\=\s*${rxp}(?:\%[0-9]+)?\s*(?:[+^&|]\s*${rxp}(?:\%[0-9]+)?)?/;
+    my $eq3xp = qr/\s*(?:\%[0-9]+)?\s*\=\s*${f3xp}\s*\((?:\s*${rxp}(?:\%[0-9]+)?\s*,)*\s*${rxp}(?:\%[0-9]+)?\s*\)/;
+#my $valxp = qr/${cstxp}{$width}/;
+    
+    my @heads;
+    my @headgs;
+
+    while (<>) {
+        chomp;
+        next if m+^//+;
+        next if m+^#+;
+        
+        for (split /;/) {
+            s/^\s*//;
+            s/\s*$//;
+            my $r;
+            my $str;
+            my $eq;
+            my $v;
+            my $type;
+            if (($type, $str) = /^\@conf ([a-z-_]*)(?:\s*=\s*(.*))?$/i) {
+                $conf->setConf($type, $str);
+            } elsif (($type, $str, $r, $eq, $v) =
+                     /^\@(state|hidden)\s*(?:\"([^"]*)\")?\s*(${rxp})(${eqxp})?\s*(?:\:\s*((?:${cstxp}{$width}|#[0-9a-f]*)))?$/i) {
+                $str = $r unless defined($str);
+                my $reg = Register->new($type, $str, $r, $v);
+                if (defined($eq)) {
+                    $reg->addEquation($r.$eq);
+                } else {
+                    $reg->noEquation();
+                }
+                $head->add($reg->getWidget());
+                $registers{$r} = $reg;
+                push @all_registers, $reg;
+                $_ = $1;
+            } elsif (($type, $str, $r, $eq, $v) =
+                     /^\@(state|hidden)\s*(?:\"([^"]*)\")?\s*(${rxp})(${eq3xp})?\s*(?:\:\s*((?:${cstxp}{$width}|#[0-9a-f]*)))?$/i) {
+                $str = $r unless defined($str);
+                my $reg = Register->new($type, $str, $r, $v);
+                if (defined($eq)) {
+                    $reg->addEquation3($r.$eq);
+                } else {
+                    $reg->noEquation();
+                }
+                $head->add($reg->getWidget());
+                $registers{$r} = $reg;
+                push @all_registers, $reg;
+                $_ = $1;
+            } elsif (/^\@hbox$/i) {
+                my $box = HBox->new(0,0);
+                $head->add($box);
+                push @heads, $head;
+                $head = $box;
+            } elsif (/^\@vbox$/i) {
+                my $box = VBox->new(0,0);
+                $head->add($box);
+                push @heads, $head;
+                $head = $box;
+            } elsif (($str) =
+                     /^\@group\s*(?:\"([^"]*)\")?$/i) {
+                my $box = Group->new($str);
+                $head->add($box);
+                push @heads, $head;
+                $head = $box->getInnerWidget();
+                push @headgs, $headg;
+                $headg = $box;
+            } elsif (/^\@end$/i) {
+                if (defined($headg) && $headg->getInnerWidget == $head) {
+                    $headg = pop @headgs;
+                }
+                $head = pop @heads;
+            } else {
+                print "Warning: I don't understand `$_'\n" unless /^ *$/;
+            }
+        }
+    };
+
+    if ($head->getConf("boomerang")) {
+        print "Setting up boomerang constraints\n";
+        my $skip = $head->getConf("bskip") // 0;
+        splice @all_registers, 0, $skip;
+        
+        my $n = scalar(@all_registers) / 4;
+        for (my $i = 0; $i<$n; $i++) {
+            my $eq = Equation->boomerang(@all_registers[$i,$i+$n,$i+2*$n,$i+3*$n]);
+            $eq->getWidget->set('no-show-all' => 1);
+            $head->add($eq->getWidget());
+        }
+        
+        print "Setting up boomerang addq constraints\n";
+
+        $n = scalar(@addq) / 4;
+        for (my $i = 0; $i<$n; $i+=3) {
+            my $eq = Equation->addq(
+                [ @addq[$i+0,$i+$n+0,$i+2*$n+0,$i+3*$n+0,
+                        $i+1,$i+$n+1,$i+2*$n+1,$i+3*$n+1,
+                        $i+2,$i+$n+2,$i+2*$n+2,$i+3*$n+2] ],
+                [ @addq_affects[$i+0,$i+$n+0,$i+2*$n+0,$i+3 *$n+0,
+                                $i+1,$i+$n+1,$i+2*$n+1,$i+3*$n+1,
+                                $i+2,$i+$n+2,$i+2*$n+2,$i+3*$n+2] ]);
+            $eq->getWidget->set('no-show-all' => 1);
+            $head->add($eq->getWidget());
+        }
+
+    }
+
+    $window;
+}
+
+
+
+
+my $window = create_window();
+propagate();
+open (my $fd, '>', "/home/es/Desktop/arxtoolkit/arxtools/arxtools/result");
+my $oldfd = select($fd);
+print $head->getInnerState();
+close($fd);
+select($oldfd);
+exit;
+
+if ($head->getConf("batch")) {
+    propagate() if $head->getConf("propagate");
+    stress_test() if $head->getConf("stress-test");
+    print $head->getInnerState() if $head->getConf("print");
+} else {
+    $window->show_all;
+    Gtk2->main;
+}
+
+sub propagate {
+    my $c = 0;
+    my $cc = -1;
+    while ($cc < $c) {
+        $cc = $c;
+        $head->propagate(\$c);
+    }
+    return $c;
+}
+
+sub linearize {
+    my $c = 0;
+    my $cc = -1;
+    while ($cc < $c) {
+        $cc = $c;
+        $head->propagate(\$c,1);
+    }
+    return $c;
+}
+
+sub stress_test {
+    # Save current state
+    my @s = map { $_->getValue2() } @all_registers;
+    
+    print "Stress test";
+    for my $i (0..@all_registers-1) {
+        for (my $j=0; $j<$width; $j++) {
+            if ($all_registers[$i]->{bits}->[$j] == $vals{'x'}) {
+                for my $x ($vals{'u'}, $vals{'n'}) {
+                    print ".";
+                    # Pick a sign
+                    $all_registers[$i]->{bits}->[$j] = $x;
+                    
+                    # Propagate
+                    my $c = 0;
+                    my $cc = -1;
+                    while ($cc < $c) {
+                        $cc = $c;
+                        $head->propagate(\$c);
+                    }
+                    
+                    # Restore starting state
+                    for my $i (0..@s-1) {
+                        $all_registers[$i]->setValue2($s[$i]);
+                    }
+                }
+            }
+        }
+    }
+
+    # Restore display
+    $head->update();
+    print "\nStress test done.\n";
+}
+
+sub get_headg {
+    return $headg;
+}
+
+sub get_addq {
+    return \@addq;
+}
+
+sub get_addq_affects {
+    return \@addq_affects;
+}
+
+sub get_conf {
+    $conf->getConf(@_);
+}
+
+#   open (my $pipe, '-|', "./solve-op", @arg);
+use Digest::SHA qw(sha1_hex);
+
+my %cache;
+
+sub cacherun {
+    my @arg = @_;
+    my $h = sha1_hex(join(',', @arg));
+
+    unless (exists($cache{$h})) {
+        my $cmd;
+        $cmd = "./constraints_xx -w $width \"".join("\" \"", @arg)."\"";
+#        print STDERR $cmd."\n";
+        my @out = `$cmd`;
+        $cache{$h} = \@out;
+#        print STDERR @{$cache{$h}};
+    }
+
+#    print STDERR @{$cache{$h}};
+    return @{$cache{$h}};
+}
+
+

@@ -1,0 +1,80 @@
+@conf wordsize = 3
+
+//%代表循环左移，%0表示不变，同一个限制，看是否兼容，以此来分析uncommon constraints
+//()内换成其他uncommon constraints
+// 0: x = x' = 0
+// 1: x = x' = 1
+// 3: x = 0
+// C: x = 1
+@vbox;
+@state a0 : (430000c2)??
+@state b0=a0%0 : 003
+@state a1 : (430000c2)??
+@state b1=a1%0 : 00C
+@state a2 : (430000c2)??
+@state b2=a2%0 : 013
+@state a3 : (430000c2)??
+@state b3=a3%0 : 01C
+@state a4 : (430000c2)??
+@state b4=a4%0 : 103
+@state a5 : (430000c2)??
+@state b5=a5%0 : 10C
+@state a6 : (430000c2)??
+@state b6=a6%0 : 113
+@state a7 : (430000c2)??
+@state b7=a7%0 : 11C
+@end;
+@vbox;
+@state c0 : (430000c2)??
+@state d0=c0%0 : nn3
+@state c1 : (430000c2)??
+@state d1=c1%0 : nnC
+@state c2 : (430000c2)??
+@state b2=c2%0 : nu3
+@state c3 : (430000c2)??
+@state d3=c3%0 : nuC
+@state c4 : (430000c2)??
+@state d4=c4%0 : un3
+@state c5 : (430000c2)??
+@state d5=c5%0 : unC
+@state c6 : (430000c2)??
+@state d6=c6%0 : uu3
+@state c7 : (430000c2)??
+@state d7=c7%0 : uuC
+@end;
+@vbox;
+@state c0 : (430000c2)??
+@state d0=c0%0 : 0n3
+@state c1 : (430000c2)??
+@state d1=c1%0 : 0nC
+@state c2 : (430000c2)??
+@state b2=c2%0 : n03
+@state c3 : (430000c2)??
+@state d3=c3%0 : n0C
+@state c4 : (430000c2)??
+@state d4=c4%0 : 1n3
+@state c5 : (430000c2)??
+@state d5=c5%0 : 1nC
+@state c6 : (430000c2)??
+@state d6=c6%0 : n13
+@state c7 : (430000c2)??
+@state d7=c7%0 : n1C
+@end;
+@vbox;
+@state c0 : (430000c2)??
+@state d0=c0%0 : 0u3
+@state c1 : (430000c2)??
+@state d1=c1%0 : 0uC
+@state c2 : (430000c2)??
+@state b2=c2%0 : u03
+@state c3 : (430000c2)??
+@state d3=c3%0 : u0C
+@state c4 : (430000c2)??
+@state d4=c4%0 : 1u3
+@state c5 : (430000c2)??
+@state d5=c5%0 : 1uC
+@state c6 : (430000c2)??
+@state d6=c6%0 : u13
+@state c7 : (430000c2)??
+@state d7=c7%0 : u1C
+@end;

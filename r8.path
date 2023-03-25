@@ -1,0 +1,78 @@
+// speck32  8-round
+
+@conf wordsize = 16;
+
+@vbox;
+// L0_0 R0_0 输入差分, %代表循环左移, %9相当于右移7位
+@vbox;
+
+@state L0_0      		: ---------x------
+@state R0_0      		: ----------------
+
+// 第一轮
+@state L0_1=L0_0%9
+@state L0_2=L0_1+R0_0 	
+@state k0        		: ----------------
+@state L1_0=L0_2^k0   	: x---------------
+@state R0_1=R0_0%2
+@state R1_0=R0_1^L1_0 	: x---------------
+
+// 第二轮
+@state L1_1=L1_0%9
+@state L1_2=L1_1+R1_0 	
+@state k1        		: ----------------
+@state L2_0=L1_2^k1    	: x-----xx--------
+@state R1_1=R1_0%2
+@state R2_0=R1_1^L2_0  	: x-----xx------x-
+
+// 第三轮
+@state L2_1=L2_0%9 
+@state L2_2=L2_1+R2_0
+@state k2				: ----------------
+@state L3_0=L2_2^k2    	: x---xxx---------
+@state R2_1=R2_0%2
+@state R3_0=R2_1^L3_0  	: x-----x-----x-x-
+
+// 第四轮
+@state L3_1=L3_0%9
+@state L3_2=L3_1+R3_0	
+@state k3				: ----------------
+@state L4_0=L3_2^k3    	: x-----xx--x-xxx-
+@state R3_1=R3_0%2
+@state R4_0=R3_1^L4_0  	: x---x-xx-----x--
+
+// 第五轮
+@state L4_1=L4_0%9
+@state L4_2=L4_1+R4_0	
+@state k4				: ----------------
+@state L5_0=L4_2^k4    	: --x-x---------x-
+@state R4_1=R4_0%2
+@state R5_0=R4_1^L5_0  	: -----x-----x----
+
+// 第六轮
+@state L5_1=L5_0%9
+@state L5_2=L5_1+R5_0	
+@state k5				: ----------------
+@state L6_0=L5_2^k5    	: ---------x------
+@state R5_1=R5_0%2
+@state R6_0=R5_1^L6_0  	: ---x------------
+
+// 第七轮
+@state L6_1=L6_0%9
+@state L6_2=L6_1+R6_0
+@state k6				: ----------------
+@state L7_0=L6_2^k6    	: x--x------------
+@state R6_1=R6_0%2
+@state R7_0=R6_1^L7_0  	: xx-x------------
+
+// 第八轮
+@state L7_1=L7_0%9 
+@state L7_2=L7_1+R7_0	
+@state k7				: ----------------
+@state L8_0=L7_2^k7    	: -x-x---x--x-----
+@state R7_1=R7_0%2
+@state R8_0=R7_1^L8_0  	: ---x---x--x---xx
+
+
+@end;
+@end;

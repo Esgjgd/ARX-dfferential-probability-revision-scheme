@@ -1,0 +1,76 @@
+// speck32 r8
+
+@conf wordsize = 16;
+
+@vbox;
+// K = (L2,L1,L0,k0)
+@state L2 				: ----------------
+@state L1 				: ----------------
+@state L0 				: ----------------
+@state k0 				: ----------------
+
+// 密钥拓展结构与轮函数结构相同
+// 左：Lr --> Lr+2, 右：kr --> kr+1, r>=0
+// %代表循环左移, %40相当于右移8位
+@vbox;
+
+// k1
+@state L0_1=L0%9
+@state L0_2=L0_1+k0
+@state r0 				: 0000000000000000
+@state L3=L0_2^r0
+@state k0_1=k0%2
+@state k1=k0_1^L3		: ------=---------
+
+// k2
+@state L1_1=L1%9
+@state L1_2=L1_1+k1
+@state r1				: 0000000000000001
+@state L4=L1_2^r1
+@state k1_1=k1%2
+@state k2=k1_1^L4		: ----(430000c2)-----------
+
+// k3
+@state L2_1=L2%9
+@state L2_2=L2_1+k2
+@state r2				: 0000000000000010
+@state L5=L2_2^r2
+@state k2_1=k2%2
+@state k3=k2_1^L5		: ----------------
+
+// k4
+@state L3_1=L3%9
+@state L3_2=L3_1+k3
+@state r3				: 0000000000000011
+@state L6=L3_2^r3
+@state k3_1=k3%2
+@state k4=k3_1^L6		: ----------------
+
+// k5
+@state L4_1=L4%9
+@state L4_2=L4_1+k4
+@state r4				: 0000000000000100
+@state L7=L4_2^r4
+@state k4_1=k4%2
+@state k5=k4_1^L7		: ----------------
+
+// k6
+@state L5_1=L5%9
+@state L5_2=L5_1+k5
+@state r5				: 0000000000000101
+@state L8=L5_2^r5
+@state k5_1=k5%2
+@state k6=k5_1^L8		: ----------------
+
+// k7
+@state L6_1=L6%9
+@state L6_2=L6_1+k6
+@state r6				: 0000000000000110
+@state L9=L6_2^r6
+@state k6_1=k6%2
+@state k7=k6_1^L9		: ----------------
+
+
+
+@end;
+@end;
