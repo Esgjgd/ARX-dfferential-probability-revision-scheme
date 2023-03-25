@@ -14,9 +14,9 @@ to output paths.
 ### pathtool2
 to run arxtoolkit automatically without interface.
 remember to put it into folder arxtoolkit\arxtools\
-### r8.path || r8 || r8KeyGen.path || r8KeyGen
+### - [ ] r8.path - [ ] r8 - [ ] r8KeyGen.path - [ ] r8KeyGen
 multi-bit constraints analysis of an 8-round SPECK32 differential characteristic and its key generation step.
-### pr_--.path || pr_all.path
+### - [ ] pr_--.path - [ ]  pr_all.path
 a script to see conditions under which 2.5-bit constraints are compatible.
 under "---" and under "???"
 ### else
