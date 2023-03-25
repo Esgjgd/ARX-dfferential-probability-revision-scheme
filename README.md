@@ -8,16 +8,17 @@ This repository provides the supplementary code and data to the paper entitled "
 * [cadical 1.5.3](https://github.com/arminbiere/cadical)
 * [ARX Toolkit](https://who.rocq.inria.fr/Gaetan.Leurent/arxtools.html)
 ### 1.py
-to search paths.
+* to search paths.
 ### 2.py
-to output paths.
+* to output paths.
 ### pathtool2
-to run arxtoolkit automatically without interface.
-remember to put it into folder arxtoolkit\arxtools\
-### - [ ] r8.path - [ ] r8 - [ ] r8KeyGen.path - [ ] r8KeyGen
-multi-bit constraints analysis of an 8-round SPECK32 differential characteristic and its key generation step.
-### - [ ] pr_--.path - [ ]  pr_all.path
-a script to see conditions under which 2.5-bit constraints are compatible.
-under "---" and under "???"
+* to run arxtoolkit automatically without interface.
+* remember to put it into folder "arxtoolkit\arxtools\".
+### r8.path、r8、r8KeyGen.path、r8KeyGen
+* multi-bit constraints analysis of an 8-round SPECK32 differential characteristic and its key generation step.
+* and results.
+### pr_--.path、pr_all.path
+* a script to see conditions under which 2.5-bit constraints are compatible.
+* under "---" and under "???"
 ### else
-our algorithm and results.
+* our algorithm and results.
