@@ -14,6 +14,8 @@ This repository provides the supplementary code and data to the paper entitled "
 ### pathtool2
 * to run arxtoolkit automatically without interface.
 * remember to put it into folder "arxtoolkit\arxtools\".
+### paths/
+* differential characteristics of 10-round SPECK32 differential (2800, 0010→0004, 0014) whose probability is over 2^(-50).
 ### r8.path、r8、r8KeyGen.path、r8KeyGen
 * multi-bit constraints analysis of an 8-round SPECK32 differential characteristic and its key generation step.
 * and results.
