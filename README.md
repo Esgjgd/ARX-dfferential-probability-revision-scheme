@@ -22,6 +22,6 @@ This repository provides the supplementary code and data to the paper entitled "
 ### pr_--.path、pr_all.path、uncommon constraints.docx
 * a script to see conditions under which 2.5-bit constraints are compatible.
 * under "---" and under "???"
-* result of 6 uncommon constraints under "---" showed in uncommon "constraints.docx".
+* result of 6 uncommon constraints under "---" showed in "uncommon constraints.docx".
 ### else
 * our algorithm and results.
