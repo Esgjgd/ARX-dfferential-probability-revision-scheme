@@ -19,8 +19,9 @@ This repository provides the supplementary code and data to the paper entitled "
 ### r8.path、r8、r8KeyGen.path、r8KeyGen
 * multi-bit constraints analysis of an 8-round SPECK32 differential characteristic and its key generation step.
 * and results.
-### pr_--.path、pr_all.path
+### pr_--.path、pr_all.path、uncommon constraints.docx
 * a script to see conditions under which 2.5-bit constraints are compatible.
 * under "---" and under "???"
+* result of 6 uncommon constraints under "---" showed in uncommon "constraints.docx".
 ### else
 * our algorithm and results.
