@@ -13,7 +13,7 @@ This repository provides the supplementary code and data to the paper entitled "
 * to output paths.
 ### pathtool2
 * to run arxtoolkit automatically without interface.
-* remember to put it into folder "arxtoolkit\arxtools\".
+* remember to put it into the folder "arxtoolkit\arxtools\".
 ### paths.rar
 * differential characteristics of 10-round SPECK32 differential (2800, 0010→0004, 0014) whose probability is over 2^(-50).
 ### r8.path、r8、r8KeyGen.path、r8KeyGen
@@ -23,5 +23,7 @@ This repository provides the supplementary code and data to the paper entitled "
 * a script to see conditions under which 2.5-bit constraints are compatible.
 * under "---" and under "???"
 * result of 6 uncommon constraints under "---" showed in "uncommon constraints.docx".
+### quasidifferential trails.rar
+* some quasidifferential trails appeared in the paper.
 ### else
 * our algorithm and results.
