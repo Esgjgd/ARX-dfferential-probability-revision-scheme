@@ -1,4 +1,4 @@
-# 基于多比特约束的ARX密码差分概率修正方案
+# 基于多比特限制的ARX密码差分概率修正方案
 # Differential Probability Revision Scheme of ARX Ciphers Based on Multi-bit Constraints
 This repository provides the supplementary code and data to the paper entitled "Differential Probability Revision Scheme of ARX Ciphers Based on Multi-bit Constraints".
 ## Tested configuration
