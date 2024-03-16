@@ -24,6 +24,6 @@ This repository provides the supplementary code and data to the paper entitled "
 * under "---" and under "???"
 * result of 6 uncommon constraints under "---" showed in "uncommon constraints.docx".
 ### quasidifferential trails.rar
-* some quasidifferential trails appeared in the paper.
+* some quasidifferential trails in the paper.
 ### else
 * our algorithm and results.
