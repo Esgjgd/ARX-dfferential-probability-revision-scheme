@@ -7,6 +7,7 @@ This repository provides the supplementary code and data to the paper entitled "
 * pandas 1.4.4
 * [cadical 1.5.3](https://github.com/arminbiere/cadical)
 * [ARX Toolkit](https://who.rocq.inria.fr/Gaetan.Leurent/arxtools.html)
+* [quasidifferential-trails](https://github.com/TimBeyne/quasidifferential-trails)
 ### 1.py
 * to search paths.
 ### 2.py
